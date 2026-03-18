@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: vless_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vless_agent
+      POSTGRES_USER: vless_agent
+      POSTGRES_PASSWORD: supersecret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+  xray:
+    image: ghcr.io/xtls/xray-core:latest
+    container_name: xray
+    restart: unless-stopped
+    volumes:
+      - ./xray/config.json:/etc/xray/config.json
+    ports:
+      - "443:443"
+      - "10085:10085"
+
+  agent:
+    build: .
+    container_name: vpn_agent
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - xray
+    volumes:
+      - xray_config:/etc/xray
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      DATABASE_URL: postgres://vless_agent:supersecret@postgres:5432/vless_agent?sslmode=disable
+      PORT: 8080
+      API_KEY: supersecret
+      SERVER: xray:10085
+      TAG: test
+      XRAY_CONFIG: /etc/xray/config.json
+      XRAY_CONTAINER: xray
+
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:
+  xray_config:
